@@ -134,13 +134,18 @@ func (c *PminfoCollector) parsePminfoModule(data string) []prometheus.Metric {
 			} //TODO: else { } not found...
 		}
 
-		slice = append(
-			slice,
-			prometheus.MustNewConstMetric(
-				ScrapeOkDesc,
-				prometheus.GaugeValue,
-				1,
-			))
+		metric := prometheus.NewGaugeFunc(
+			prometheus.GaugeOpts{Namespace: Namespace, Name: "Scrape Ok", Help: "Was scrape Ok"},
+			func() float64 { return 1 },
+		)
+
+		// metric, err := prometheus.NewGauge(
+		// 	ScrapeOkDesc,
+		// 	prometheus.GaugeValue,
+		// 	1,
+		// )
+
+		slice = append(slice, metric)
 
 	}
 	return slice
