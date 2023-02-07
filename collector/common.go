@@ -22,6 +22,15 @@ const (
 	CmdSmcIpmiTool = "SMCIPMITool"
 )
 
+var (
+	ScrapeOkDesc = prometheus.NewDesc(
+		prometheus.BuildFQName(Namespace, "info", "scrape_ok"),
+		"Indicates if a scrape was successful or not",
+		nil,
+		nil,
+	)
+)
+
 // Function signature for NewCollector...
 type NewCollectorHandle func(string, string, string) prometheus.Collector
 

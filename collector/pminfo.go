@@ -133,6 +133,15 @@ func (c *PminfoCollector) parsePminfoModule(data string) []prometheus.Metric {
 					))
 			} //TODO: else { } not found...
 		}
+
+		slice = append(
+			slice,
+			prometheus.MustNewConstMetric(
+				ScrapeOkDesc,
+				prometheus.GaugeValue,
+				1,
+			))
+
 	}
 	return slice
 }
