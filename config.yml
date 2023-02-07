@@ -6,6 +6,5 @@ targets:
   - target.1
   - target.2
 
-# enable=[1, true, True, TRUE]/disable=[0, false, False, FALSE] collector
 collectors:
   pminfo: True

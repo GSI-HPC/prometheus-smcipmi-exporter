@@ -18,6 +18,7 @@ package collector
 import (
 	"prometheus-smcipmi-exporter/util"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -36,15 +37,28 @@ var (
 
 	pminfoMetricTemplates = make(map[string]metricTemplate)
 
-	pminfoStatusMetricTemplate = metricTemplate{
+	pminfoPowerSupplyStatusMetricTemplate = metricTemplate{
 		desc:         pminfoPowerSupplyStatusDesc,
 		valueType:    prometheus.GaugeValue,
 		valueCreator: convertPowerSupplyStatusValue,
 	}
 
+	pminfoPowerConsumptionMetricTemplate = metricTemplate{
+		desc:         pminfoPowerConsumptionDesc,
+		valueType:    prometheus.GaugeValue,
+		valueCreator: convertPowerConsumptionValue,
+	}
+
 	pminfoPowerSupplyStatusDesc = prometheus.NewDesc(
 		prometheus.BuildFQName(Namespace, "pminfo", "power_supply_status"),
 		"Power supply status (0=OK, 1=OFF, 2=Failure)",
+		[]string{"target", "module"},
+		nil,
+	)
+
+	pminfoPowerConsumptionDesc = prometheus.NewDesc(
+		prometheus.BuildFQName(Namespace, "pminfo", "power_consumption_watts"),
+		"Current power consumption measured in watts",
 		[]string{"target", "module"},
 		nil,
 	)
@@ -59,7 +73,8 @@ type PminfoCollector struct {
 func init() {
 	validatePminfoRegex()
 
-	pminfoMetricTemplates["Status"] = pminfoStatusMetricTemplate
+	pminfoMetricTemplates["Status"] = pminfoPowerSupplyStatusMetricTemplate
+	pminfoMetricTemplates["Input Power"] = pminfoPowerConsumptionMetricTemplate
 }
 
 func NewPminfoCollector(target string, user string, password string) prometheus.Collector {
@@ -67,7 +82,7 @@ func NewPminfoCollector(target string, user string, password string) prometheus.
 }
 
 func (c *PminfoCollector) Collect(ch chan<- prometheus.Metric) {
-	log.Debug("Collecting pminfo data from target: ", c.target)
+	log.Debug("Collecting pminfo module data from target: ", c.target)
 
 	pminfoData, err := util.ExecuteCommand(CmdSmcIpmiTool, c.target, c.user, c.password, "pminfo")
 
@@ -75,7 +90,7 @@ func (c *PminfoCollector) Collect(ch chan<- prometheus.Metric) {
 		log.Fatal(err)
 	}
 
-	metrics := c.ParsePminfoModules(*pminfoData)
+	metrics := c.parsePminfoModule(*pminfoData)
 
 	for _, metric := range metrics {
 		ch <- metric
@@ -85,7 +100,7 @@ func (c *PminfoCollector) Collect(ch chan<- prometheus.Metric) {
 func (c *PminfoCollector) Describe(ch chan<- *prometheus.Desc) {
 }
 
-func (c *PminfoCollector) ParsePminfoModules(data string) []prometheus.Metric {
+func (c *PminfoCollector) parsePminfoModule(data string) []prometheus.Metric {
 	slice := make([]prometheus.Metric, 0, 20)
 
 	matchedModules := pminfoModuleRegex.FindAllStringSubmatch(data, -1)
@@ -103,9 +118,11 @@ func (c *PminfoCollector) ParsePminfoModules(data string) []prometheus.Metric {
 			name := strings.TrimSpace(item[pminfoItemNameIndex])
 			value := strings.TrimSpace(item[pminfoItemValueIndex])
 
+			// TODO: Iterate over pminfoMetricTemplates and check if key in ItemMap...
 			metricTemplate, foundMetric := pminfoMetricTemplates[name]
 
 			if foundMetric {
+
 				slice = append(
 					slice,
 					prometheus.MustNewConstMetric(
@@ -114,7 +131,7 @@ func (c *PminfoCollector) ParsePminfoModules(data string) []prometheus.Metric {
 						metricTemplate.valueCreator(value),
 						c.target, number,
 					))
-			}
+			} //TODO: else { } not found...
 		}
 	}
 	return slice
@@ -135,6 +152,8 @@ func validatePminfoRegex() {
 	}
 }
 
+// TODO: error found during parsing...? -> return (float64, error)
+// Valid values: OK, OFF and what else?
 func convertPowerSupplyStatusValue(value string) float64 {
 	if strings.Contains(value, "OK") {
 		return 0
@@ -143,4 +162,25 @@ func convertPowerSupplyStatusValue(value string) float64 {
 	} else {
 		return 2
 	}
+}
+
+// TODO: error found during parsing...? -> return (float64, error)
+func convertPowerConsumptionValue(value string) float64 {
+	slice := strings.Split(value, " ")
+
+	if len(slice) != 2 {
+		log.Panicln("Length of Input Power item is invalid: ", value)
+	}
+
+	if slice[1] != "W" {
+		log.Panicln("Unit in Input Power item is not W: ", value)
+	}
+
+	powerConsumption, err := strconv.ParseFloat(slice[0], 10)
+
+	if err != nil {
+		log.Panicln(err)
+	}
+
+	return powerConsumption
 }
