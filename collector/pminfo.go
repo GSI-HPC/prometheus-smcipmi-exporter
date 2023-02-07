@@ -135,7 +135,7 @@ func (c *PminfoCollector) parsePminfoModule(data string) []prometheus.Metric {
 		}
 
 		metric := prometheus.NewGaugeFunc(
-			prometheus.GaugeOpts{Namespace: Namespace, Name: "Scrape Ok", Help: "Was scrape Ok"},
+			prometheus.GaugeOpts{Namespace: Namespace, Name: "scrape_ok", Subsystem: "info", Help: "Was scrape Ok"},
 			func() float64 { return 1 },
 		)
 
