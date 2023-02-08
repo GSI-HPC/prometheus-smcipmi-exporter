@@ -65,7 +65,7 @@ var (
 )
 
 type PminfoCollector struct {
-	target   string
+	targets  []string
 	user     string
 	password string
 }
@@ -77,30 +77,34 @@ func init() {
 	pminfoMetricTemplates["Input Power"] = pminfoPowerConsumptionMetricTemplate
 }
 
-func NewPminfoCollector(target string, user string, password string) prometheus.Collector {
-	return &PminfoCollector{target, user, password}
+func NewPminfoCollector(targets []string, user string, password string) prometheus.Collector {
+	return &PminfoCollector{targets, user, password}
 }
 
 func (c *PminfoCollector) Collect(ch chan<- prometheus.Metric) {
-	log.Debug("Collecting pminfo module data from target: ", c.target)
 
-	pminfoData, err := util.ExecuteCommandWithSudo(CmdSmcIpmiTool, c.target, c.user, c.password, "pminfo")
+	for _, target := range c.targets {
 
-	if err != nil {
-		log.Fatal(err)
+		log.Debug("Collecting pminfo module data from target: ", target)
+
+		pminfoData, err := util.ExecuteCommandWithSudo(CmdSmcIpmiTool, target, c.user, c.password, "pminfo")
+
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		for _, metric := range c.createMetrics(target, *pminfoData) {
+			ch <- metric
+		}
 	}
 
-	metrics := c.parsePminfoModule(*pminfoData)
-
-	for _, metric := range metrics {
-		ch <- metric
-	}
 }
 
 func (c *PminfoCollector) Describe(ch chan<- *prometheus.Desc) {
 }
 
-func (c *PminfoCollector) parsePminfoModule(data string) []prometheus.Metric {
+func (c *PminfoCollector) createMetrics(target string, data string) []prometheus.Metric {
+
 	slice := make([]prometheus.Metric, 0, 20)
 
 	matchedModules := pminfoModuleRegex.FindAllStringSubmatch(data, -1)
@@ -132,7 +136,7 @@ func (c *PminfoCollector) parsePminfoModule(data string) []prometheus.Metric {
 						metricTemplate.desc,
 						metricTemplate.valueType,
 						metricTemplate.valueCreator(value),
-						c.target, number,
+						target, number,
 					))
 			} else {
 				log.Panicln("Metric not found: ", metricName)

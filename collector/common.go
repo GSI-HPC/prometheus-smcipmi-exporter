@@ -23,7 +23,7 @@ const (
 )
 
 // Function signature for NewCollector...
-type NewCollectorHandle func(string, string, string) prometheus.Collector
+type NewCollectorHandle func([]string, string, string) prometheus.Collector
 
 type metricTemplate struct {
 	desc         *prometheus.Desc
