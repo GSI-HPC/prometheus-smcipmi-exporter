@@ -50,7 +50,7 @@ func TestParsePminfoModule(t *testing.T) {
 		t.Error("No pminfo metrics recieved")
 	}
 
-	if len(metrics) != 8 {
+	if len(metrics) != 12 {
 		t.Error("Incomplete count of pminfo metrics recieved")
 	}
 

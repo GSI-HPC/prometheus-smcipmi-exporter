@@ -32,14 +32,17 @@ var (
 	pminfoModuleNumberIndex = pminfoModuleRegex.SubexpIndex("number")
 	pminfoModuleItemsIndex  = pminfoModuleRegex.SubexpIndex("items")
 
-	pminfoItemRegex      = regexp.MustCompile(`(?m:(?P<name>(?:\s*[\w]+\s?)+)\s*\|\s*(?P<value>.*))`)
+	pminfoItemRegex      = regexp.MustCompile(`(?m:(?P<name>(?:\s*[\w/(/)]+\s?)+)\s*\|\s*(?P<value>.*))`)
 	pminfoItemNameIndex  = pminfoItemRegex.SubexpIndex("name")
 	pminfoItemValueIndex = pminfoItemRegex.SubexpIndex("value")
 
 	pminfoPowerConsumptionRegex      = regexp.MustCompile(`^(?P<value>\d{1,3}) W$`)
 	pminfoPowerConsumptionValueIndex = pminfoPowerConsumptionRegex.SubexpIndex("value")
 
-	pminfoMetricTemplates = make(map[string]metricTemplate)
+	pminfoPwsRev = "PWS Revision"
+
+	pminfoMetricTemplates      = make(map[string]metricTemplate)
+	pminfoMetricTemplatesRev12 = make(map[string]metricTemplate)
 
 	pminfoPowerSupplyStatusMetricTemplate = metricTemplate{
 		desc:         pminfoPowerSupplyStatusDesc,
@@ -79,6 +82,9 @@ func init() {
 
 	pminfoMetricTemplates["Status"] = pminfoPowerSupplyStatusMetricTemplate
 	pminfoMetricTemplates["Input Power"] = pminfoPowerConsumptionMetricTemplate
+
+	pminfoMetricTemplatesRev12["Status"] = pminfoPowerSupplyStatusMetricTemplate
+	pminfoMetricTemplatesRev12["Input Power (DC)"] = pminfoPowerConsumptionMetricTemplate
 }
 
 func NewPminfoCollector(target string, user string, password string) prometheus.Collector {
@@ -111,21 +117,31 @@ func (c *PminfoCollector) CreateMetrics(data string) []prometheus.Metric {
 
 	for _, module := range matchedModules {
 
+		var metricTemplateMap *map[string]metricTemplate
+
 		number := module[pminfoModuleNumberIndex]
 		items := module[pminfoModuleItemsIndex]
 
-		// Create itemMap for fast O(1) lookup
+		// Create itemMap for O(1) lookup
 		itemMap := make(map[string]string)
-
 		for _, item := range pminfoItemRegex.FindAllStringSubmatch(items, -1) {
-
 			name := strings.TrimSpace(item[pminfoItemNameIndex])
 			value := strings.TrimSpace(item[pminfoItemValueIndex])
-
 			itemMap[name] = value
 		}
 
-		for metricName, metricTemplate := range pminfoMetricTemplates {
+		rev, found := itemMap[pminfoPwsRev]
+		if found {
+			if rev == "1.2" {
+				metricTemplateMap = &pminfoMetricTemplatesRev12
+			} else {
+				metricTemplateMap = &pminfoMetricTemplates
+			}
+		} else {
+			log.Panicf("Field '%s' not found\n", pminfoPwsRev)
+		}
+
+		for metricName, metricTemplate := range *metricTemplateMap {
 
 			value, found := itemMap[metricName]
 
